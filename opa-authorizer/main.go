@@ -23,15 +23,17 @@ var (
 	store = inmem.NewFromReader(bytes.NewBufferString(data))
 
 	ctx = context.Background()
+
+	queryPath = "data.visaeasy.awslambdaauthorizer.authz.allow"
 )
 
 func handler(request events.APIGatewayV2CustomAuthorizerV2Request) (events.APIGatewayV2CustomAuthorizerSimpleResponse, error) {
 	fmt.Printf("Request %+v\n", request)
 
 	query, err := rego.New(
-		rego.Query("data.visaeasy.awslambdaauthorizer.authz.allow"),
-		rego.Module("authz_policy.rego", authzpolicy),
-		rego.Module("token_validation.rego", tokenvalidation),
+		rego.Query(queryPath),
+		rego.Module("a.rego", authzpolicy),
+		rego.Module("b.rego", tokenvalidation),
 		rego.Store(store),
 	).PrepareForEval(ctx)
 
