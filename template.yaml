@@ -1,0 +1,71 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  opa-http-golang-authorizer
+
+Resources:
+  VisaEasyApi:
+    Type: AWS::Serverless::HttpApi
+
+  InvokeAuthorizerPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref OPAAuthorizerFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${VisaEasyApi}/*'
+
+  OPAAuthorizerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: opa-authorizer/
+      Handler: opa-authorizer
+      Runtime: go1.x
+      Architectures:
+        - x86_64
+
+  OPAAuthorizer:
+    Type: AWS::ApiGatewayV2::Authorizer
+    Properties:
+      ApiId: !Ref VisaEasyApi
+      Name: OPAAuthorizer
+      AuthorizerPayloadFormatVersion: 2.0
+      AuthorizerType: REQUEST
+      EnableSimpleResponses: true
+      AuthorizerResultTtlInSeconds: 0
+      AuthorizerUri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OPAAuthorizerFunction.Arn}/invocations'
+
+  VisaEligibilityTarget:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref VisaEasyApi
+      IntegrationType: HTTP_PROXY
+      IntegrationMethod: GET
+      IntegrationUri: https://mockbin.org/bin/3a5de8e8-5030-4258-a6e8-e89d6f3713fc
+      PayloadFormatVersion: '1.0'
+
+  VisaEligibilityRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref VisaEasyApi
+      RouteKey: 'GET /visa-eligibility'
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref OPAAuthorizer
+      Target: !Join
+        - /
+        - - integrations
+          - !Ref VisaEligibilityTarget
+
+Outputs:
+  VisaEasyApiUrl:
+    Value: 
+      Fn::Sub: 'https://${VisaEasyApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/'
+  VisaEasyApiId:
+    Value: VisaEasyApi
+  OPAAuthorizerFunction:
+    Value: !GetAtt OPAAuthorizerFunction.Arn
+  OPAAuthorizerFunctionIamRole:
+    Value: !GetAtt OPAAuthorizerFunctionRole.Arn
+  VisaEligibilityUrl:
+    Value: 
+      Fn::Sub: 'https://${VisaEasyApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/visa-eligibility'
